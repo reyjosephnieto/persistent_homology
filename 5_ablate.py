@@ -16,16 +16,16 @@ import fives_shared as fs
 
 DiagramArray = fs.DiagramArray
 
-TopoVector = typing.Annotated[np.ndarray, "9"]
-TopoMatrix = typing.Annotated[np.ndarray, "N,9"]
+TopoVector = typing.Annotated[np.ndarray, "6"]
+TopoMatrix = typing.Annotated[np.ndarray, "N,6"]
 GeoMatrix = typing.Annotated[np.ndarray, "N,7"]
 LabelArray = typing.Annotated[np.ndarray, "N"]
 
-CacheItem = typing.Tuple[
-    typing.Tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
+CacheItem = tuple[
+    tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
 ]
 
-PROTOCOL_MAP: typing.Dict[str, str] = {
+PROTOCOL_MAP: dict[str, str] = {
     "gamma": "Gamma",
     "contrast": "Contrast",
     "drift": "Illumination Drift",
@@ -37,20 +37,21 @@ PROTOCOL_MAP: typing.Dict[str, str] = {
     "bit_depth": "Bit Depth",
     "resolution": "Resolution",
 }
-FEATURE_SETS: typing.Dict[str, typing.Sequence[int]] = {
-    "H0": (0, 1, 2),
-    "H1": (3, 4, 5),
-    "HS": (6, 7, 8),
-    "H0H1": (0, 1, 2, 3, 4, 5),
-    "H0HS": (0, 1, 2, 6, 7, 8),
-    "H1HS": (3, 4, 5, 6, 7, 8),
-    "H0H1HS": (0, 1, 2, 3, 4, 5, 6, 7, 8),
-    "Geometric": (9, 10, 11, 12, 13, 14, 15),
+FEATURE_SETS: dict[str, typing.Sequence[int]] = {
+    "H0": (0, 1),
+    "H1": (2, 3),
+    "HS": (4, 5),
+    "Combined": (0, 1, 2, 3, 4, 5),
+    "Hu": (6, 7, 8, 9, 10, 11, 12),
 }
 CSV_COLUMNS: typing.Sequence[str] = tuple(
-    ["Regime", "Parameter"]
-    + [f"Acc_{name}" for name in FEATURE_SETS]
+    ["Regime", "Parameter"] + [f"Acc_{name}" for name in FEATURE_SETS]
 )
+GROUP_OUTPUTS: dict[str, str] = {
+    "Mechanical": "results_mechanical.csv",
+    "Radiometric": "results_radiometric.csv",
+    "Failure": "results_failure.csv",
+}
 
 
 def _metric_key(name: str) -> str:
@@ -72,23 +73,23 @@ def _metric_key(name: str) -> str:
 
 def build_feature_matrices(
     items: typing.Sequence[CacheItem],
-) -> typing.Tuple[TopoMatrix, GeoMatrix, LabelArray]:
-    """Build topological and geometric matrices.
+) -> tuple[TopoMatrix, GeoMatrix, LabelArray]:
+    """Build topological and Hu moment matrices.
 
     Parameters
     ----------
     items : typing.Sequence[CacheItem]
-        Cached diagrams, geometry vectors, and labels.
+        Cached diagrams, Hu moment vectors, and labels.
 
     Returns
     -------
     tuple of numpy.ndarray
-        Topological matrix, geometric matrix, and labels.
+        Topological matrix, Hu moment matrix, and labels.
 
     """
-    topo_rows: typing.List[TopoVector] = []
-    geo_rows: typing.List[np.ndarray] = []
-    labels: typing.List[int] = []
+    topo_rows: list[TopoVector] = []
+    geo_rows: list[np.ndarray] = []
+    labels: list[int] = []
 
     for diagrams, geom_vec, label in items:
         d0_sub, d1_sub, *rest = diagrams
@@ -111,7 +112,7 @@ def build_feature_matrices(
 
         geo_vec = np.asarray(geom_vec, dtype=np.float32).reshape(-1)
         if geo_vec.shape[0] != 7:
-            raise ValueError("Geometric vector length mismatch.")
+            raise ValueError("Hu vector length mismatch.")
 
         topo_rows.append(topo_vec)
         geo_rows.append(geo_vec)
@@ -127,8 +128,8 @@ def build_feature_matrices(
 def load_cache_split(
     split: str,
     perturbation_type: str,
-    level: typing.Union[int, float],
-) -> typing.Tuple[TopoMatrix, GeoMatrix, LabelArray]:
+    level: int | float,
+) -> tuple[TopoMatrix, GeoMatrix, LabelArray]:
     """Load cached features for a split and perturbation.
 
     Parameters
@@ -143,16 +144,14 @@ def load_cache_split(
     Returns
     -------
     tuple of numpy.ndarray
-        Topological matrix, geometric matrix, and labels.
+        Topological matrix, Hu moment matrix, and labels.
 
     """
     cache_path = fs.cache_path(split, perturbation_type, level)
     if not cache_path.exists():
         raise FileNotFoundError(f"Missing cache file: {cache_path}")
 
-    items = typing.cast(
-        typing.List[CacheItem], fs.read_cache_stream(cache_path)
-    )
+    items = typing.cast(list[CacheItem], fs.read_cache_stream(cache_path))
     if not items:
         raise ValueError("Empty cache stream.")
 
@@ -160,13 +159,13 @@ def load_cache_split(
 
 
 def load_standard_total(
-) -> typing.Tuple[TopoMatrix, GeoMatrix, LabelArray, int, int]:
+) -> tuple[TopoMatrix, GeoMatrix, LabelArray, int, int]:
     """Load standard train and test caches into aligned matrices.
 
     Returns
     -------
     tuple
-        Topological matrix, geometric matrix, labels, train count, test count.
+        Topological matrix, Hu moment matrix, labels, train count, test count.
 
     """
     train_topo, train_geo, train_labels = load_cache_split(
@@ -189,10 +188,10 @@ def load_standard_total(
 
 def load_perturbed_total(
     perturbation_type: str,
-    level: typing.Union[int, float],
+    level: int | float,
     train_count: int,
     test_count: int,
-) -> typing.Tuple[TopoMatrix, GeoMatrix, LabelArray]:
+) -> tuple[TopoMatrix, GeoMatrix, LabelArray]:
     """Load perturbed train and test caches into aligned matrices.
 
     Parameters
@@ -209,7 +208,7 @@ def load_perturbed_total(
     Returns
     -------
     tuple of numpy.ndarray
-        Topological matrix, geometric matrix, and labels.
+        Topological matrix, Hu moment matrix, and labels.
 
     """
     train_topo, train_geo, train_labels = load_cache_split(
@@ -232,7 +231,7 @@ def load_perturbed_total(
 def train_model(
     features: np.ndarray,
     labels: LabelArray,
-) -> typing.Tuple[StandardScaler, LogisticRegression]:
+) -> tuple[StandardScaler, LogisticRegression]:
     """Fit a standardised logistic regression model.
 
     Parameters
@@ -292,7 +291,7 @@ def evaluate_model(
     return float(accuracy_score(labels, predictions))
 
 
-def print_baseline_table(mean_scores: typing.Dict[str, float]) -> None:
+def print_baseline_table(mean_scores: dict[str, float]) -> None:
     """Print the baseline accuracy table for standard data.
 
     Parameters
@@ -316,7 +315,7 @@ def print_baseline_table(mean_scores: typing.Dict[str, float]) -> None:
 
 def print_protocol_table(
     protocol_name: str,
-    rows: typing.Sequence[typing.Tuple[str, typing.Dict[str, float]]],
+    rows: typing.Sequence[tuple[str, dict[str, float]]],
 ) -> None:
     """Print the table for a perturbation protocol.
 
@@ -343,7 +342,7 @@ def print_protocol_table(
         print("| " + " | ".join(values) + " |")
 
 
-def format_row(row: typing.Dict[str, typing.Any]) -> typing.Dict[str, typing.Any]:
+def format_row(row: dict[str, typing.Any]) -> dict[str, typing.Any]:
     """Format numeric row values to three decimals.
 
     Parameters
@@ -368,14 +367,16 @@ def run_full_kfold() -> None:
     None
 
     """
+    fs.seed_everything()
+    fs.report_resource_allocation("Ablation")
     standard_topo, standard_geo, labels, train_count, test_count = (
         load_standard_total()
     )
     standard_all = np.hstack((standard_topo, standard_geo)).astype(np.float32)
-    run_id = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
-    perturbation_data: typing.Dict[
-        typing.Tuple[str, typing.Union[int, float]],
+    perturbation_data: dict[
+        tuple[str, int | float],
         np.ndarray,
     ] = {}
 
@@ -395,19 +396,19 @@ def run_full_kfold() -> None:
         n_splits=5, shuffle=True, random_state=fs.GLOBAL_SEED
     )
 
-    baseline_accs: typing.Dict[str, typing.List[float]] = {
+    baseline_accs: dict[str, list[float]] = {
         name: [] for name in FEATURE_SETS
     }
-    protocol_results: typing.Dict[
-        typing.Tuple[str, typing.Union[int, float]],
-        typing.Dict[str, typing.List[float]],
+    protocol_results: dict[
+        tuple[str, int | float],
+        dict[str, list[float]],
     ] = {
         key: {name: [] for name in FEATURE_SETS} for key in perturbation_data
     }
 
     for train_idx, val_idx in splitter.split(standard_all, labels):
-        scalers: typing.Dict[str, StandardScaler] = {}
-        models: typing.Dict[str, LogisticRegression] = {}
+        scalers: dict[str, StandardScaler] = {}
+        models: dict[str, LogisticRegression] = {}
 
         for name, indices in FEATURE_SETS.items():
             train_features = standard_all[train_idx][:, indices]
@@ -448,20 +449,28 @@ def run_full_kfold() -> None:
             **{f"Acc_{name}": mean_baseline[name] for name in FEATURE_SETS},
         }
     )
-    csv_rows: typing.List[typing.Dict[str, typing.Any]] = [baseline_row]
-    per_protocol_rows: typing.Dict[
-        str, typing.List[typing.Dict[str, typing.Any]]
+    csv_rows: list[dict[str, typing.Any]] = [baseline_row]
+    per_protocol_rows: dict[
+        str, list[dict[str, typing.Any]]
     ] = {
         perturbation_type: [baseline_row.copy()]
         for perturbation_type, _ in fs.PROTOCOLS
         if perturbation_type != "standard"
+    }
+    group_rows: dict[str, list[dict[str, typing.Any]]] = {
+        group: [baseline_row.copy()] for group in fs.PROTOCOL_GROUPS
+    }
+    protocol_to_group: dict[str, str] = {
+        protocol: group
+        for group, protocols in fs.PROTOCOL_GROUPS.items()
+        for protocol in protocols
     }
 
     for perturbation_type, levels in fs.PROTOCOLS:
         if perturbation_type == "standard":
             continue
         protocol_name = PROTOCOL_MAP.get(perturbation_type, perturbation_type)
-        rows: typing.List[typing.Tuple[str, typing.Dict[str, float]]] = []
+        rows: list[tuple[str, dict[str, float]]] = []
 
         for level in levels:
             key = (perturbation_type, level)
@@ -481,18 +490,17 @@ def run_full_kfold() -> None:
             for name in FEATURE_SETS:
                 record[_metric_key(name)] = mean_scores[name]
             fs.append_perf_log(record)
-            csv_rows.append(
-                format_row(
-                    {
-                        "Regime": perturbation_type,
-                        "Parameter": float(level),
-                        **{
-                            f"Acc_{name}": mean_scores[name]
-                            for name in FEATURE_SETS
-                        },
-                    }
-                )
+            csv_row = format_row(
+                {
+                    "Regime": perturbation_type,
+                    "Parameter": float(level),
+                    **{
+                        f"Acc_{name}": mean_scores[name]
+                        for name in FEATURE_SETS
+                    },
+                }
             )
+            csv_rows.append(csv_row)
             per_protocol_rows[perturbation_type].append(
                 format_row(
                     {
@@ -505,15 +513,20 @@ def run_full_kfold() -> None:
                     }
                 )
             )
+            group_name = protocol_to_group.get(perturbation_type)
+            if group_name is not None:
+                group_rows[group_name].append(csv_row)
 
         print_protocol_table(protocol_name, rows)
 
-    output_path = pathlib.Path("stress_test_results.csv")
-    with output_path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
-        writer.writeheader()
-        writer.writerows(csv_rows)
-    print(f"Saved stress test summary to {output_path}")
+    for group_name, filename in GROUP_OUTPUTS.items():
+        output_path = pathlib.Path(filename)
+        rows = group_rows.get(group_name, [])
+        with output_path.open("w", newline="", encoding="utf-8") as handle:
+            writer = csv.DictWriter(handle, fieldnames=CSV_COLUMNS)
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"Saved stress test summary to {output_path}")
 
     for perturbation_type, rows in per_protocol_rows.items():
         output_path = pathlib.Path(

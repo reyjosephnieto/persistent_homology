@@ -15,24 +15,24 @@ import fives_shared as fs
 
 DiagramArray = fs.DiagramArray
 
-TopoVector = typing.Annotated[np.ndarray, "3"]
+TopoVector = typing.Annotated[np.ndarray, "2"]
 CombinedVector = typing.Annotated[np.ndarray, "6"]
-TopoMatrix = typing.Annotated[np.ndarray, "N,3"]
+TopoMatrix = typing.Annotated[np.ndarray, "N,2"]
 CombinedMatrix = typing.Annotated[np.ndarray, "N,6"]
 GeoMatrix = typing.Annotated[np.ndarray, "N,7"]
 LabelArray = typing.Annotated[np.ndarray, "N"]
 
-CacheItem = typing.Tuple[
-    typing.Tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
+CacheItem = tuple[
+    tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
 ]
 
 
 def build_feature_sets(
     cache_path: pathlib.Path,
-) -> typing.Tuple[
-    TopoMatrix, TopoMatrix, CombinedMatrix, GeoMatrix, LabelArray
+) -> tuple[
+    TopoMatrix, TopoMatrix, TopoMatrix, CombinedMatrix, GeoMatrix, LabelArray
 ]:
-    """Build H0, H1, combined, and geometry matrices.
+    """Build H0, H1, HS, H0H1HS, and Hu moment matrices.
 
     Parameters
     ----------
@@ -42,50 +42,63 @@ def build_feature_sets(
     Returns
     -------
     tuple of numpy.ndarray
-        H0, H1, combined, geometry matrices, and labels.
+        H0, H1, HS, H0H1HS, Hu moment matrices, and labels.
 
     """
-    items = typing.cast(
-        typing.List[CacheItem], fs.read_cache_stream(cache_path)
-    )
+    items = typing.cast(list[CacheItem], fs.read_cache_stream(cache_path))
     if not items:
         raise ValueError("Empty cache stream.")
 
-    h0_rows: typing.List[TopoVector] = []
-    h1_rows: typing.List[TopoVector] = []
-    combined_rows: typing.List[CombinedVector] = []
-    geo_rows: typing.List[np.ndarray] = []
-    labels: typing.List[int] = []
+    h0_rows: list[TopoVector] = []
+    h1_rows: list[TopoVector] = []
+    hs_rows: list[TopoVector] = []
+    combined_rows: list[CombinedVector] = []
+    geo_rows: list[np.ndarray] = []
+    labels: list[int] = []
 
     for diagrams, geom_vec, label in items:
-        d0_sub, d1_sub, *_ = diagrams
+        d0_sub, d1_sub, *rest = diagrams
+        d0_sup = rest[0] if rest else np.empty((0, 2), dtype=np.float32)
         d0_array = np.asarray(d0_sub, dtype=np.float32).reshape(-1, 2)
         d1_array = np.asarray(d1_sub, dtype=np.float32).reshape(-1, 2)
+        d0_sup_array = np.asarray(d0_sup, dtype=np.float32).reshape(-1, 2)
 
         h0_vec = fs.extract_topological_features(d0_array)
         h1_vec = fs.extract_topological_features(d1_array)
-        combined_vec = np.concatenate((h0_vec, h1_vec)).astype(np.float32)
+        hs_vec = fs.extract_topological_features(d0_sup_array)
+        combined_vec = np.concatenate((h0_vec, h1_vec, hs_vec)).astype(
+            np.float32
+        )
         geo_vec = np.asarray(geom_vec, dtype=np.float32).reshape(-1)
 
         h0_rows.append(h0_vec)
         h1_rows.append(h1_vec)
+        hs_rows.append(hs_vec)
         combined_rows.append(combined_vec)
         geo_rows.append(geo_vec)
         labels.append(label)
 
     h0_matrix = np.vstack(h0_rows).astype(np.float32)
     h1_matrix = np.vstack(h1_rows).astype(np.float32)
+    hs_matrix = np.vstack(hs_rows).astype(np.float32)
     combined_matrix = np.vstack(combined_rows).astype(np.float32)
     geo_matrix = np.vstack(geo_rows).astype(np.float32)
     label_array = np.asarray(labels, dtype=np.int64)
 
-    return h0_matrix, h1_matrix, combined_matrix, geo_matrix, label_array
+    return (
+        h0_matrix,
+        h1_matrix,
+        hs_matrix,
+        combined_matrix,
+        geo_matrix,
+        label_array,
+    )
 
 
 def evaluate_condition(
     features: np.ndarray,
     labels: LabelArray,
-) -> typing.Tuple[float, float]:
+) -> tuple[float, float]:
     """Return mean accuracy and AUC from stratified CV.
 
     Parameters
@@ -104,8 +117,8 @@ def evaluate_condition(
     splitter = StratifiedKFold(
         n_splits=5, shuffle=True, random_state=fs.GLOBAL_SEED
     )
-    accuracies: typing.List[float] = []
-    aucs: typing.List[float] = []
+    accuracies: list[float] = []
+    aucs: list[float] = []
 
     for train_idx, val_idx in splitter.split(features, labels):
         scaler = StandardScaler()
@@ -145,13 +158,14 @@ def run_validation() -> None:
     None
 
     """
+    fs.seed_everything()
     cache_path = fs.cache_path("train", "standard", 0)
     if not cache_path.exists():
         raise FileNotFoundError(f"Missing cache file: {cache_path}")
 
-    run_id = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
-    h0_matrix, h1_matrix, combined_matrix, geo_matrix, labels = (
+    h0_matrix, h1_matrix, hs_matrix, combined_matrix, geo_matrix, labels = (
         build_feature_sets(cache_path)
     )
 
@@ -160,6 +174,7 @@ def run_validation() -> None:
         {
             "h0": h0_matrix,
             "h1": h1_matrix,
+            "hs": hs_matrix,
             "combined": combined_matrix,
             "geo": geo_matrix,
             "labels": labels,
@@ -173,8 +188,9 @@ def run_validation() -> None:
     conditions = [
         ("H0", h0_matrix),
         ("H1", h1_matrix),
-        ("H0H1", combined_matrix),
-        ("Geometric", geo_matrix),
+        ("HS", hs_matrix),
+        ("Combined", combined_matrix),
+        ("Hu", geo_matrix),
     ]
 
     for name, features in conditions:

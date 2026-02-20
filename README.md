@@ -2,7 +2,7 @@
 
 This repository contains the data processing, feature extraction, and evaluation pipeline for evaluating the stability of Topological Data Analysis (TDA) on discrete sensor grids. 
 
-Using Diabetic Retinopathy screening as the clinical testbed, the pipeline benchmarks a 6D topological summary ($\vH_0\vH_1\vH_S$) against a 7D geometric baseline (Hu Moments) across 116 distinct perturbation regimes. The framework empirically validates the **Orthogonality Hypothesis**: geometric invariants provide robust Mechanical Control (affine stability), while topological invariants provide robust Radiometric Control (illumination/quantisation stability).
+Using Diabetic Retinopathy screening as the clinical testbed, the pipeline benchmarks a 6D topological summary ($\mathbf{H}_0\mathbf{H}_}1\mathbf{H}_S$) against a 7D geometric baseline (Hu Moments) across 116 distinct perturbation regimes. The framework empirically validates the **Orthogonality Hypothesis**: geometric invariants provide robust Mechanical Control (affine stability), while topological invariants provide robust Radiometric Control (illumination/quantisation stability).
 
 ## Requirements
 - Python 3.9+
@@ -22,9 +22,9 @@ Using Diabetic Retinopathy screening as the clinical testbed, the pipeline bench
 
 ## Feature Definitions
 The pipeline enforces a coarse vectorisation strategy to guarantee Lipschitz continuity under the bottleneck distance:
-- **Topological Vector (6D):** Concatenation of $\vH_0$ (sublevel/dark lesions), $\vH_1$ (sublevel/vascular loops), and $\vH_S$ (superlevel/bright exudates). Each homological dimension is summarised as a 2D vector: `[Top-5 Persistence Sum, Total Persistence]`. Betti counts are strictly excluded to maintain continuous stability.
+- **Topological Vector (6D):** Concatenation of $\mathbf{H}_0$ (sublevel/dark lesions), $\mathbf{H}_1$ (sublevel/vascular loops), and $\mathbf{H}_S$ (superlevel/bright exudates). Each homological dimension is summarised as a 2D vector: `[Top-5 Persistence Sum, Total Persistence]`. Betti counts are strictly excluded to maintain continuous stability.
 - **Geometric Control (7D):** Log-transformed Hu Invariant Moments.
-- **Audit Vector (13D):** $\vH_0 \oplus \vH_1 \oplus \vH_S \oplus \text{Hu}$.
+- **Audit Vector (13D):** $\mathbf{H}_0 \oplus \mathbf{H}_1 \oplus \mathbf{H}_S \oplus \text{Hu}$.
 
 ## Pipeline Execution
 
@@ -82,13 +82,13 @@ The pipeline evaluates three operational failure regimes. Global random seeds di
 ## Supplementary Geometric Stress Tests
 Standalone scripts to isolate grid interpolation artefacts ("The Discretisation Gap"). Outputs write to `wobble/`.
 
-**Rotational Shattering ($\vH_0$):**
+**Rotational Shattering ($\mathbf{H}_0$):**
 Rotates a linear array of 30 isolated pixels. Demonstrates spurious component merging under bilinear interpolation.
 
     python experiment_shattering_binary.py
 
 
-**Loop Closure ($\vH_1$):**
+**Loop Closure ($\mathbf{H}_1$):**
 Rotates five thin rectangular loops. Demonstrates feature erasure and fragmentation at non-grid-aligned angles.
 
     python experiment_loops_binary.py

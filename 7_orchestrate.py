@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import pathlib
-import typing
 
 import fives_shared as fs
 
@@ -18,7 +17,7 @@ def main() -> None:
 
     """
     root = pathlib.Path(__file__).resolve().parent
-    steps: typing.Sequence[typing.Tuple[str, str]] = (
+    steps: tuple[tuple[str, str], ...] = (
         ("Step 1 (Precompute)", "1_precompute.py"),
         ("Step 2 (Audit)", "2_audit.py"),
         ("Step 3 (Signal)", "3_signal.py"),

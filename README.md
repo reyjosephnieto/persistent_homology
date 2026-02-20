@@ -1,8 +1,8 @@
 # Computational Stability of Cubical Homology
 
-This repository contains the data processing, feature extraction, and evaluation pipeline for evaluating the stability of Topological Data Analysis (TDA) on discrete sensor grids. 
+This repository contains the data processing, feature extraction, and evaluation pipeline for evaluating the stability of Topological Data Analysis (TDA) on discrete sensor grids.
 
-Using Diabetic Retinopathy screening as the clinical testbed, the pipeline benchmarks a 6D topological summary ($\textbf{H}_0\textbf{H}_}1\textbf{H}_S$) against a 7D geometric baseline (Hu Moments) across 116 distinct perturbation regimes. The framework empirically validates the **Orthogonality Hypothesis**: geometric invariants provide robust Mechanical Control (affine stability), while topological invariants provide robust Radiometric Control (illumination/quantisation stability).
+Using Diabetic Retinopathy screening as the clinical testbed, the pipeline benchmarks a 6D topological summary ($\textbf{H}_0\textbf{H}_1\textbf{H}_S$) against a 7D geometric baseline (Hu Moments) across 116 distinct perturbation regimes. The framework empirically validates the **Orthogonality Hypothesis**: geometric invariants provide robust Mechanical Control (affine stability), while topological invariants provide robust Radiometric Control (illumination/quantisation stability).
 
 ## Requirements
 - Python 3.9+
@@ -12,10 +12,8 @@ Using Diabetic Retinopathy screening as the clinical testbed, the pipeline bench
 
 ## Dataset Setup
 1. [Download the FIVES dataset (Fundus Image Vessel Segmentation)](https://figshare.com/articles/figure/FIVES_A_Fundus_Image_Dataset_for_AI-based_Vessel_Segmentation/19688169?file=34969398).
-   
-   
-3. Extract the archive directly into the workspace root. 
-4. The target directory must be named exactly:
+2. Extract the archive directly into the workspace root.
+3. The target directory must be named exactly:
    `FIVES A Fundus Image Dataset for AI-based Vessel Segmentation/`
 
 *Note: The ingest script automatically filters out AMD and Glaucoma partitions to isolate the balanced Normal/DR cohort ($N=400$).*
@@ -74,7 +72,7 @@ The pipeline evaluates three operational failure regimes. Global random seeds di
 - **`cache_parts/`**: Cached persistence modules and Hu moment vectors.
 - **`perf_log.jsonl`**: Raw cross-validation metrics.
 - **`results_*.csv`**: Tabulated accuracy drops for each stress regime.
-- **`plot_results/`**: 
+- **`plot_results/`**:
   - `plot_panel_mechanical.png`, `plot_panel_radiometric.png`, `plot_panel_failure.png`
   - `plot_single_{protocol}.png`
   - `plot_orthogonality.png`
@@ -86,7 +84,6 @@ Standalone scripts to isolate grid interpolation artefacts ("The Discretisation 
 Rotates a linear array of 30 isolated pixels. Demonstrates spurious component merging under bilinear interpolation.
 
     python experiment_shattering_binary.py
-
 
 **Loop Closure ($\textbf{H}_1$):**
 Rotates five thin rectangular loops. Demonstrates feature erasure and fragmentation at non-grid-aligned angles.

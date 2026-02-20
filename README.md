@@ -1,147 +1,94 @@
-# TDA Pipeline
+# Computational Stability of Cubical Homology
 
-Retinal fundus classification pipeline using cubical persistence (H0/H1/HS) and Hu moments, with perturbation stress tests and plotting.
+This repository contains the data processing, feature extraction, and evaluation pipeline for evaluating the stability of Topological Data Analysis (TDA) on discrete sensor grids. 
+
+Using Diabetic Retinopathy screening as the clinical testbed, the pipeline benchmarks a 6D topological summary ($\vH_0\vH_1\vH_S$) against a 7D geometric baseline (Hu Moments) across 116 distinct perturbation regimes. The framework empirically validates the **Orthogonality Hypothesis**: geometric invariants provide robust Mechanical Control (affine stability), while topological invariants provide robust Radiometric Control (illumination/quantisation stability).
 
 ## Requirements
 - Python 3.9+
-- Packages: numpy, scipy, scikit-learn, opencv-python, gudhi, matplotlib
+- Packages: `numpy`, `scipy`, `scikit-learn`, `opencv-python`, `gudhi`, `matplotlib`
 
-Install:
-```bash
-pip install numpy scipy scikit-learn opencv-python gudhi matplotlib
-```
+    pip install numpy scipy scikit-learn opencv-python gudhi matplotlib
 
 ## Dataset Setup
-1. Download the FIVES dataset and extract it into the workspace root.
-2. Folder name must be:
+1. [Download the FIVES dataset (Fundus Image Vessel Segmentation)](https://figshare.com/articles/figure/FIVES_A_Fundus_Image_Dataset_for_AI-based_Vessel_Segmentation/19688169?file=34969398).
+   
+   
+3. Extract the archive directly into the workspace root. 
+4. The target directory must be named exactly:
    `FIVES A Fundus Image Dataset for AI-based Vessel Segmentation/`
 
-## One-Time Ingest (Staging)
-Run once to build staged tensors:
-```bash
-python 0_ingest.py
-```
-Creates:
-- `data/clean_cohort.npz` (images, labels, indices)
-- `data/clean_images.npy`, `data/clean_labels.npy`
-- `data/raw_images.npy` (raw green channel, no CLAHE, no resize; stacked or object array)
-- `data/raw_paths.npy` (string paths aligned with stacked order)
-- `data/train_indices.npy`, `data/test_indices.npy`
-
-## Run the Pipeline
-From the workspace root:
-```bash
-python 7_orchestrate.py
-```
-
-### Orchestrator Order
-1) `1_precompute.py` builds cached persistence/geometry features for each perturbation.
-2) `2_audit.py` audits feature statistics on standard train.
-3) `3_signal.py` measures signal via 5-fold CV on standard train.
-4) `4_generalise.py` evaluates train/test generalization on standard H0+H1.
-5) `5_ablate.py` performs k-fold stress tests across perturbations.
-6) `6_plot.py` renders grouped panels, per-protocol plots, and orthogonality.
-
-## Shared Configuration (fives_shared.py)
-Protocol groups:
-- Mechanical: rotation, resolution, blur
-- Radiometric: drift, gamma, contrast
-- Failure: gau_noise, spepper_noise, poi_noise, bit_depth
-
-Perturbation ranges (current defaults):
-- gamma: 0.1 → 3.0 (step 0.1)
-- contrast: 0.5 → 3.0 (step 0.1)
-- drift: -150 → 150 (step 10)
-- rotation: -10 → 10 (step 1)
-- blur: 0.0 → 1.5 (step 0.15)
-- gau_noise: 0.0 → 0.20 (step 0.02)
-- poi_noise: 0.0 → 0.20 (step 0.02)
-- spepper_noise: 0.0000 → 0.0250 (step 0.0025)
-- bit_depth: 2–8
-- resolution: 64–2048
-
-Reproducibility:
-- `seed_everything()` is used in steps 2+.
-- Stochastic perturbations are seeded via `make_rng()`.
+*Note: The ingest script automatically filters out AMD and Glaucoma partitions to isolate the balanced Normal/DR cohort ($N=400$).*
 
 ## Feature Definitions
-- Per-diagram stats: `[top-5 persistence sum, total persistence]`.
-- H0 = H0 sublevel, H1 = H1 sublevel, HS = H0 superlevel (computed on the inverted image). Each is 2D.
-- H0H1HS = 6D (H0 + H1 + HS).
-- Hu = 7D log Hu moments.
-- Audit vector = 13D (H0 + H1 + HS + Hu).
+The pipeline enforces a coarse vectorisation strategy to guarantee Lipschitz continuity under the bottleneck distance:
+- **Topological Vector (6D):** Concatenation of $\vH_0$ (sublevel/dark lesions), $\vH_1$ (sublevel/vascular loops), and $\vH_S$ (superlevel/bright exudates). Each homological dimension is summarised as a 2D vector: `[Top-5 Persistence Sum, Total Persistence]`. Betti counts are strictly excluded to maintain continuous stability.
+- **Geometric Control (7D):** Log-transformed Hu Invariant Moments.
+- **Audit Vector (13D):** $\vH_0 \oplus \vH_1 \oplus \vH_S \oplus \text{Hu}$.
 
-## Step Details
+## Pipeline Execution
 
-### 1_precompute.py
-- Loads staged arrays (memmap when possible).
-- Uses `train_indices.npy` / `test_indices.npy` for splits.
-- Non-resolution protocols use `clean_images.npy` (already CLAHE).
-- Resolution uses `raw_images.npy` (green only, no CLAHE) and applies CLAHE inside persistence.
-- If `raw_images.npy` is object dtype, falls back to `raw_paths.npy` + `fs.load_image`.
-- Writes cache streams: `cache_parts/{split}_{perturbation}_{level}.pkl`.
-- Skips existing cache files.
+### 1. One-Time Ingest (Staging)
+Run the staging script to construct the base arrays:
 
-### 2_audit.py
-- Welch t-test + Cohen’s d on standard train features.
-- Logs to `perf_log.jsonl`.
+    python 0_ingest.py
 
-### 3_signal.py
-- 5-fold CV on standard train cache.
-- Evaluates H0, H1, HS, H0H1HS, Hu.
-- Saves feature matrices to `cache_parts/ablation_features.pkl`.
+Outputs generated in `data/`:
+- `clean_cohort.npz` (images, labels, indices)
+- `clean_images.npy`, `clean_labels.npy` (CLAHE applied)
+- `raw_images.npy` (raw green channel, no CLAHE, no resize)
+- `raw_paths.npy` (string paths aligned with stacked order)
+- `train_indices.npy`, `test_indices.npy`
 
-### 4_generalise.py
-- Train/test check on standard H0+H1 (4D).
-- Logs to `perf_log.jsonl`.
+### 2. Full Orchestration
+Execute the entire feature extraction and stress-testing pipeline:
 
-### 5_ablate.py
-- 5-fold CV on combined train+test with fixed folds across perturbations.
-- Feature sets: H0, H1, HS, H0H1HS, Hu.
-- Outputs:
-  - `results_mechanical.csv`, `results_radiometric.csv`, `results_failure.csv`
-  - `stress_test_results_{protocol}.csv`
-- Logs metrics to `perf_log.jsonl`.
+    python 7_orchestrate.py
 
-### 6_plot.py
-- Reads the latest `5_ablate` run from `perf_log.jsonl`.
-- Grouped panels:
-  - `plot_panel_mechanical.png` (rotation, blur, resolution)
-  - `plot_panel_radiometric.png` (drift, gamma, contrast)
-  - `plot_panel_failure.png` (gau_noise, spepper_noise, poi_noise)
-- Per-protocol plots: `plot_single_{protocol}.png` (bit_depth is single only).
-- Orthogonality plot: `plot_orthogonality.png` (rotation vs drift, H0/H1/HS/H0H1HS/Hu).
-- Output dir: `plot_results/`.
+The orchestrator executes the following stages sequentially:
+1. **`1_precompute.py`**: Builds cached persistence/geometry features for each perturbation. Bypasses existing caches. Non-resolution protocols use `clean_images.npy`. Resolution protocols read from `raw_images.npy` and apply CLAHE post-resize.
+2. **`2_audit.py`**: Conducts statistical feature separability audits (Welch's t-test, Cohen’s d) on the baseline training set.
+3. **`3_signal.py`**: Establishes baseline discriminative power via 5-fold cross-validation on the standard train cache.
+4. **`4_generalise.py`**: Evaluates baseline train/test generalisation.
+5. **`5_ablate.py`**: Executes the sensitivity audit. Runs Stratified 5-Fold CV on the pooled cohort ($N=400$) across all perturbations.
+6. **`6_plot.py`**: Renders the robustness gap plots and differential failure matrices.
 
-## Outputs
-- `data/`: staged tensors
-- `cache_parts/`: cached persistence/geometry streams
-- `perf_log.jsonl`: metrics log
-- `results_mechanical.csv`, `results_radiometric.csv`, `results_failure.csv`
-- `stress_test_results_{protocol}.csv`
-- `plot_results/plot_panel_*.png`
-- `plot_results/plot_single_{protocol}.png`
-- `plot_results/plot_orthogonality.png`
+## Sensitivity Audit Configuration (`fives_shared.py`)
+The pipeline evaluates three operational failure regimes. Global random seeds dictate stochastic noise generation (`seed_everything()`).
 
-## Additional Experiments
-Standalone rotation experiments that write to `wobble/`:
+- **Mechanical (Aim):** Probing spatial interpolation penalties ($\lambda \times L_\mcI$).
+  - Rotation: $-10^\circ \to 10^\circ$ (step 1)
+  - Blur: $\sigma \in [0.0, 1.5]$ (step 0.15)
+  - Resolution: $64\text{px} \to 2048\text{px}$
+- **Radiometric (Shoot):** Probing sensor transfer function deviations.
+  - Gamma: $0.1 \to 3.0$ (step 0.1)
+  - Contrast: $0.5 \to 3.0$ (step 0.1)
+  - Drift: $-150 \to 150$ (step 10)
+- **Stochastic/Digital Failure:** Probing noise floors ($\eta$).
+  - Gaussian Noise: $\sigma^2 \in [0.0, 0.20]$ (step 0.02)
+  - Poisson Noise: $\lambda \in [0.0, 0.20]$ (step 0.02)
+  - Salt & Pepper: $p \in [0.0000, 0.0250]$ (step 0.0025)
+  - Bit Depth (Quantisation): $2 \to 8$ bits
 
-### 1) Points under rotation — `experiment_shattering_binary.py`
-- Rotates 30 isolated pixels and measures connected components.
+## Outputs & Artefacts
+- **`cache_parts/`**: Cached persistence modules and Hu moment vectors.
+- **`perf_log.jsonl`**: Raw cross-validation metrics.
+- **`results_*.csv`**: Tabulated accuracy drops for each stress regime.
+- **`plot_results/`**: 
+  - `plot_panel_mechanical.png`, `plot_panel_radiometric.png`, `plot_panel_failure.png`
+  - `plot_single_{protocol}.png`
+  - `plot_orthogonality.png`
 
-Run:
-```bash
-python experiment_shattering_binary.py
-```
+## Supplementary Geometric Stress Tests
+Standalone scripts to isolate grid interpolation artefacts ("The Discretisation Gap"). Outputs write to `wobble/`.
 
-### 2) Thin loops under rotation — `experiment_loops_binary.py`
-- Rotates five thin rectangular loops and measures hole count.
+**Rotational Shattering ($\vH_0$):**
+Rotates a linear array of 30 isolated pixels. Demonstrates spurious component merging under bilinear interpolation.
 
-Run:
-```bash
-python experiment_loops_binary.py
-```
+    python experiment_shattering_binary.py
 
-## Notes
-- Run `0_ingest.py` once before the orchestrator.
-- If perturbation ranges or feature definitions change, clear `cache_parts/` and rerun precompute + downstream steps.
+
+**Loop Closure ($\vH_1$):**
+Rotates five thin rectangular loops. Demonstrates feature erasure and fragmentation at non-grid-aligned angles.
+
+    python experiment_loops_binary.py

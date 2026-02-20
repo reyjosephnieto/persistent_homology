@@ -13,17 +13,17 @@ import fives_shared as fs
 
 DiagramArray = fs.DiagramArray
 
-TopoVector = typing.Annotated[np.ndarray, "6"]
-TopoMatrix = typing.Annotated[np.ndarray, "N,6"]
+TopoVector = typing.Annotated[np.ndarray, "4"]
+TopoMatrix = typing.Annotated[np.ndarray, "N,4"]
 LabelArray = typing.Annotated[np.ndarray, "N"]
 
-CacheItem = typing.Tuple[
-    typing.Tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
+CacheItem = tuple[
+    tuple[DiagramArray, DiagramArray, DiagramArray], np.ndarray, int
 ]
 
 
-def load_split(split: str) -> typing.Tuple[TopoMatrix, LabelArray]:
-    """Load a split and build the combined topological features.
+def load_split(split: str) -> tuple[TopoMatrix, LabelArray]:
+    """Load a split and build H0+H1 sublevel features.
 
     Parameters
     ----------
@@ -33,19 +33,19 @@ def load_split(split: str) -> typing.Tuple[TopoMatrix, LabelArray]:
     Returns
     -------
     tuple of numpy.ndarray
-        Topological feature matrix and labels.
+        Topological feature matrix and labels (4D).
 
     """
     path = fs.cache_path(split, "standard", 0)
     if not path.exists():
         raise FileNotFoundError(f"Missing cache: {path}")
 
-    items = typing.cast(typing.List[CacheItem], fs.read_cache_stream(path))
+    items = typing.cast(list[CacheItem], fs.read_cache_stream(path))
     if not items:
         raise ValueError("Empty cache stream.")
 
-    features: typing.List[TopoVector] = []
-    labels: typing.List[int] = []
+    features: list[TopoVector] = []
+    labels: list[int] = []
 
     for diagrams, _, label in items:
         d0_sub, d1_sub, *_ = diagrams
@@ -73,8 +73,9 @@ def run_failure_analysis() -> None:
     None
 
     """
+    fs.seed_everything()
     print("Loading data...")
-    run_id = datetime.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+    run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
     x_train, y_train = load_split("train")
     x_test, y_test = load_split("test")

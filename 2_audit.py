@@ -38,14 +38,14 @@ FEATURE_NAMES: typing.Sequence[str] = (
 
 
 def build_feature_matrix(
-    cache_path: pathlib.Path,
+    items: list[CacheItem],
 ) -> tuple[FeatureMatrix, LabelArray]:
     """Build a 13D feature matrix and labels.
 
     Parameters
     ----------
-    cache_path : pathlib.Path
-        Cache stream path.
+    items : list of CacheItem
+        Cached diagrams, Hu moments, and labels.
 
     Returns
     -------
@@ -53,9 +53,8 @@ def build_feature_matrix(
         Feature matrix and label array.
 
     """
-    items = typing.cast(list[CacheItem], fs.read_cache_stream(cache_path))
     if not items:
-        raise ValueError("Empty cache stream.")
+        raise ValueError("Empty cache items.")
 
     rows: list[CombinedVector] = []
     labels: list[int] = []
@@ -88,6 +87,135 @@ def build_feature_matrix(
     label_array = np.asarray(labels, dtype=np.int64)
 
     return feature_matrix, label_array
+
+
+def _lifetimes_from_diagram(diagram: DiagramArray) -> np.ndarray:
+    """Return finite, non-negative lifetimes from a diagram."""
+    if diagram.size == 0:
+        return np.empty((0,), dtype=np.float32)
+    finite = diagram[np.isfinite(diagram).all(axis=1)]
+    if finite.size == 0:
+        return np.empty((0,), dtype=np.float32)
+    lifetimes = finite[:, 1] - finite[:, 0]
+    lifetimes = np.maximum(lifetimes, 0.0)
+    return lifetimes.astype(np.float32)
+
+
+def _init_lifetime_stats() -> dict[str, float]:
+    return {"count": 0.0, "sum": 0.0, "min": np.inf, "max": -np.inf}
+
+
+def _update_lifetime_stats(stats: dict[str, float], lifetimes: np.ndarray) -> None:
+    if lifetimes.size == 0:
+        return
+    stats["count"] += float(lifetimes.size)
+    stats["sum"] += float(lifetimes.sum())
+    stats["min"] = min(stats["min"], float(lifetimes.min()))
+    stats["max"] = max(stats["max"], float(lifetimes.max()))
+
+
+def _histogram_summary(
+    hist: np.ndarray,
+    edges: np.ndarray,
+) -> tuple[float, float]:
+    if hist.sum() == 0:
+        return 0.0, 0.0
+    cumulative = np.cumsum(hist)
+    target = 0.5 * float(cumulative[-1])
+    median_idx = int(np.searchsorted(cumulative, target, side="left"))
+    median = float(0.5 * (edges[median_idx] + edges[median_idx + 1]))
+    mode_idx = int(np.argmax(hist))
+    mode = float(0.5 * (edges[mode_idx] + edges[mode_idx + 1]))
+    return median, mode
+
+
+def compute_lifetime_summary(
+    items: list[CacheItem],
+    bins: int = 256,
+) -> dict[str, dict[str, float]]:
+    """Compute mean, median, and mode of lifetimes per homology group.
+
+    Median and mode are estimated from a binned histogram.
+
+    Parameters
+    ----------
+    items : list of CacheItem
+        Cached diagrams, Hu moments, and labels.
+    bins : int, optional
+        Histogram bins for median/mode estimation.
+
+    Returns
+    -------
+    dict
+        Mapping of homology name to mean/median/mode/count.
+    """
+    stats = {
+        "H0": _init_lifetime_stats(),
+        "H1": _init_lifetime_stats(),
+        "HS": _init_lifetime_stats(),
+    }
+
+    for diagrams, _, _ in items:
+        d0_sub, d1_sub, *rest = diagrams
+        d0_sup = rest[0] if rest else np.empty((0, 2), dtype=np.float32)
+        _update_lifetime_stats(stats["H0"], _lifetimes_from_diagram(d0_sub))
+        _update_lifetime_stats(stats["H1"], _lifetimes_from_diagram(d1_sub))
+        _update_lifetime_stats(stats["HS"], _lifetimes_from_diagram(d0_sup))
+
+    summaries: dict[str, dict[str, float]] = {}
+    histograms: dict[str, np.ndarray] = {}
+    edges_map: dict[str, np.ndarray] = {}
+
+    for key, stat in stats.items():
+        count = int(stat["count"])
+        if count == 0:
+            summaries[key] = {
+                "mean": 0.0,
+                "median": 0.0,
+                "mode": 0.0,
+                "count": 0.0,
+            }
+            continue
+        min_val = stat["min"]
+        max_val = stat["max"]
+        if min_val == max_val:
+            summaries[key] = {
+                "mean": float(stat["sum"] / stat["count"]),
+                "median": float(min_val),
+                "mode": float(min_val),
+                "count": float(count),
+            }
+            continue
+        edges = np.linspace(min_val, max_val, bins + 1)
+        edges_map[key] = edges
+        histograms[key] = np.zeros(bins, dtype=np.int64)
+
+    for diagrams, _, _ in items:
+        d0_sub, d1_sub, *rest = diagrams
+        d0_sup = rest[0] if rest else np.empty((0, 2), dtype=np.float32)
+        for key, diagram in (("H0", d0_sub), ("H1", d1_sub), ("HS", d0_sup)):
+            if key not in histograms:
+                continue
+            lifetimes = _lifetimes_from_diagram(diagram)
+            if lifetimes.size == 0:
+                continue
+            histograms[key] += np.histogram(
+                lifetimes, bins=edges_map[key]
+            )[0]
+
+    for key, stat in stats.items():
+        if key in summaries:
+            continue
+        mean = float(stat["sum"] / stat["count"])
+        median, mode = _histogram_summary(histograms[key], edges_map[key])
+        summaries[key] = {
+            "mean": mean,
+            "median": median,
+            "mode": mode,
+            "count": float(stat["count"]),
+        }
+
+    return summaries
 
 
 def compute_feature_statistics(
@@ -200,7 +328,12 @@ def main() -> None:
 
     run_id = datetime.datetime.now(datetime.UTC).strftime("%Y%m%dT%H%M%SZ")
 
-    features, labels = build_feature_matrix(cache_path)
+    items = typing.cast(list[CacheItem], fs.read_cache_stream(cache_path))
+    if not items:
+        raise ValueError("Empty cache stream.")
+
+    features, labels = build_feature_matrix(items)
+    lifetime_summary = compute_lifetime_summary(items)
     rows = compute_feature_statistics(features, labels, FEATURE_NAMES)
     rows_sorted = sorted(rows, key=lambda row: abs(row[4]), reverse=True)
     print_markdown_table(rows_sorted)
@@ -215,6 +348,34 @@ def main() -> None:
                 "mean_diabetic": float(mean_diabetic),
                 "p_value": float(p_value),
                 "cohens_d": float(cohens_d),
+                "split": "train",
+                "perturbation": "standard",
+                "level": 0,
+            }
+        )
+
+    print("\n| Homology | Mean | Median | Mode | Count |")
+    print("| --- | --- | --- | --- | --- |")
+    for key in ("H0", "H1", "HS"):
+        summary = lifetime_summary[key]
+        print(
+            "| {name} | {mean} | {median} | {mode} | {count} |".format(
+                name=key,
+                mean=fs.format_value(summary["mean"]),
+                median=fs.format_value(summary["median"]),
+                mode=fs.format_value(summary["mode"]),
+                count=fs.format_value(summary["count"]),
+            )
+        )
+        fs.append_perf_log(
+            {
+                "step": "2_audit_lifetimes",
+                "run_id": run_id,
+                "homology": key,
+                "mean": float(summary["mean"]),
+                "median": float(summary["median"]),
+                "mode": float(summary["mode"]),
+                "count": float(summary["count"]),
                 "split": "train",
                 "perturbation": "standard",
                 "level": 0,

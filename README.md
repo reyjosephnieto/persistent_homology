@@ -1,4 +1,5 @@
 # Computational Stability of Cubical Homology
+## Orthogonal Controls for Fault Isolation in Retinal Diagnostics
 
 This repository contains an end-to-end pipeline for testing how stable Topological Data Analysis (TDA) features are on discrete sensor grids.
 

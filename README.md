@@ -96,7 +96,7 @@ The statistical results reveal that the Top-5 Persistence Sum ($S_5$) operates a
 ## Sensitivity Audit Configuration (`fives_shared.py`)
 The pipeline evaluates three operational failure regimes. Global random seeds dictate stochastic noise generation (`seed_everything()`).
 
-- **Mechanical (Aim):** Probing spatial interpolation penalties ($\lambda \times L_\mcI$).
+- **Mechanical (Aim):** Probing spatial interpolation penalties ($\lambda \times L_I$).
   - Rotation: $-10^\circ \to 10^\circ$ (step 1)
   - Blur: $\sigma \in [0.0, 1.5]$ (step 0.15)
   - Resolution: $64\text{px} \to 2048\text{px}$

@@ -124,15 +124,23 @@ Lifetime summary (train baseline):
 | $\textbf{H}_1$ | 3.852 | 3.383 | 1.477 | 11,609,642 |
 | $\textbf{H}_S$ | 4.010 | 3.422 | 1.484 | 8,668,531 |
 
-Top discriminative features by absolute effect size $|d|$ (train baseline):
+Full univariate feature ranking by absolute effect size $|d|$ (train baseline):
 
-| **Feature** | **Cohen's $d$** |
-| :--- | ---: |
-| $\textbf{H}_S$ Top-5 Sum | 1.573 |
-| $\textbf{H}_0$ Top-5 Sum | 1.415 |
-| Hu Moment $\phi_5$ | -0.901 |
-| $\textbf{H}_1$ Top-5 Sum | 0.879 |
-| $\textbf{H}_0$ Total Persistence | -0.698 |
+| **Feature Name** | **Healthy Mean** | **Diabetic Mean** | **p-value** | **Cohen's $d$** |
+| :--- | ---: | ---: | ---: | ---: |
+| HS Top5 | 363.807 | 609.067 | 0.000 | 1.573 |
+| H0 Top5 | 231.300 | 543.800 | 0.000 | 1.415 |
+| Hu 5 | 7.680 | -1.920 | 0.000 | -0.901 |
+| H1 Top5 | 466.493 | 547.920 | 0.000 | 0.879 |
+| H0 Total | 127244.039 | 111088.070 | 0.000 | -0.698 |
+| HS Total | 122674.039 | 109061.906 | 0.000 | -0.641 |
+| H1 Total | 158138.562 | 139959.438 | 0.000 | -0.580 |
+| Hu 4 | -9.832 | -9.995 | 0.004 | -0.336 |
+| Hu 7 | -0.800 | -3.840 | 0.025 | -0.260 |
+| Hu 3 | -11.274 | -11.196 | 0.116 | 0.182 |
+| Hu 2 | -8.490 | -8.590 | 0.165 | -0.161 |
+| Hu 1 | -2.634 | -2.642 | 0.386 | -0.100 |
+| Hu 6 | -2.878 | -2.078 | 0.557 | 0.068 |
 
 ## Sensitivity Audit Configuration (`fives_shared.py`)
 The pipeline evaluates three operational failure regimes. Global random seeds dictate stochastic noise generation (`seed_everything()`).

@@ -23,6 +23,7 @@ The pipeline enforces a coarse vectorisation strategy to guarantee Lipschitz con
 - **Topological Vector (6D):** Concatenation of $\textbf{H}_0$ (sublevel/dark lesions), $\textbf{H}_1$ (sublevel/vascular loops), and $\textbf{H}_S$ (superlevel/bright exudates). Each homological dimension is summarised as a 2D vector: `[Top-5 Persistence Sum, Total Persistence]`. Betti counts are strictly excluded to maintain continuous stability.
 - **Geometric Control (7D):** Log-transformed Hu Invariant Moments.
 - **Audit Vector (13D):** $\textbf{H}_0 \oplus \textbf{H}_1 \oplus \textbf{H}_S \oplus \text{Hu}$.
+Notation: $\textbf{H}_0$ denotes 0th homology on sublevel sets, $\textbf{H}_1$ denotes 1st homology on sublevel sets, and $\textbf{H}_S$ denotes 0th homology on superlevel sets (S avoids a notational clash).
 
 ## Pipeline Execution
 
@@ -63,9 +64,9 @@ To systematically determine the truncation parameter $\tau$, the global distribu
 
 | **Homology** | **Mean** | **Median** | **Mode** | **Count** |
 | :--- | ---: | ---: | ---: | ---: |
-| $\vH_0$ | 4.080 | 3.412 | 1.482 | 8,762,399 |
-| $\vH_1$ | 3.852 | 3.383 | 1.477 | 11,609,642 |
-| $\vH_S$ | 4.010 | 3.422 | 1.484 | 8,668,531 |
+| $\textbf{H}_0$ | 4.080 | 3.412 | 1.482 | 8,762,399 |
+| $\textbf{H}_1$ | 3.852 | 3.383 | 1.477 | 11,609,642 |
+| $\textbf{H}_S$ | 4.010 | 3.422 | 1.484 | 8,668,531 |
 
 The generation of millions of features per homology group indicates the dense presence of high-frequency stochastic noise ("topological dust"). Because the mean persistence across all groups approximates $4.0$, a strict truncation threshold of $\tau = 5.0$ was selected. This aggressively prunes transient, low-amplitude generators that are statistically probable to represent noise rather than anatomical structures.
 
@@ -74,13 +75,13 @@ Prior to invoking the linear probe under perturbation, a rigorous statistical au
 
 | **Feature Name** | **Healthy** ($\mu$) | **Diabetic** ($\mu$) | **$p$-value** | **Cohen's $d$** |
 | :--- | :---: | :---: | :---: | :---: |
-| $\vH_S$ Top-5 Sum | 363.807 | 609.067 | $< 0.001$ | **1.573** |
-| $\vH_0$ Top-5 Sum | 231.300 | 543.800 | $< 0.001$ | **1.415** |
+| $\textbf{H}_S$ Top-5 Sum | 363.807 | 609.067 | $< 0.001$ | **1.573** |
+| $\textbf{H}_0$ Top-5 Sum | 231.300 | 543.800 | $< 0.001$ | **1.415** |
 | Hu Moment $\phi_5$ | 7.680 | -1.920 | $< 0.001$ | -0.901 |
-| $\vH_1$ Top-5 Sum | 466.493 | 547.920 | $< 0.001$ | **0.879** |
-| $\vH_0$ Total Persistence | 127244.039 | 111088.070 | $< 0.001$ | -0.698 |
-| $\vH_S$ Total Persistence | 122674.039 | 109061.906 | $< 0.001$ | -0.641 |
-| $\vH_1$ Total Persistence | 158138.562 | 139959.438 | $< 0.001$ | -0.580 |
+| $\textbf{H}_1$ Top-5 Sum | 466.493 | 547.920 | $< 0.001$ | **0.879** |
+| $\textbf{H}_0$ Total Persistence | 127244.039 | 111088.070 | $< 0.001$ | -0.698 |
+| $\textbf{H}_S$ Total Persistence | 122674.039 | 109061.906 | $< 0.001$ | -0.641 |
+| $\textbf{H}_1$ Total Persistence | 158138.562 | 139959.438 | $< 0.001$ | -0.580 |
 | Hu Moment $\phi_4$ | -9.832 | -9.995 | 0.004 | -0.336 |
 | Hu Moment $\phi_7$ | -0.800 | -3.840 | 0.025 | -0.260 |
 | Hu Moment $\phi_3$ | -11.274 | -11.196 | 0.116 | 0.182 |
